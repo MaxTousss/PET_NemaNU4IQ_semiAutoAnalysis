@@ -51,6 +51,7 @@ import re
 import argparse
 import numpy as np 
 from collections import defaultdict
+from typing import Dict, Union, List
 
 
 ########################################################################################################################
@@ -83,7 +84,6 @@ def parseAmideRawMeasurementFile(_file_path: str):
 		current_table = []
 		for line in file:
 			# Attempt to extract the data set name in the current line 
-			# zxc Could do that only for line starting with '#'
 			data_set_match = re.match(r"#\s+Data Set:\s+(.+?)\s+Scaling Factor:", line)
 			# Attempt to extract the ROI name in the current line 
 			roi_match = re.match(r"#\s+ROI:\s+(\S+)\s+Type:", line)
@@ -116,12 +116,12 @@ def parseAmideRawMeasurementFile(_file_path: str):
 	return data_dict
 
 
-def extractBasicMetrics(_voiInfo: np.array):
+def extractBasicMetrics(_voiInfo: np.ndarray) -> Union[float, float, float, float]:
 	'''
 	Def: Extract the basic metrics (mean, std dev, min and max) from the VOIs.
 	@_voiInfo[:, 5]: Array describing the pixels inside the current VOI. The columns are the pixel value, the fraction 
 	                 inside the VOI and the (x, y, z) position of the pixel.
-	Returns (4 floats): 
+	Returns: 
 	    Mean, StdDev, Min and Max of the VOI.
 	'''
 	# Can handle fractions of pixels
@@ -137,7 +137,7 @@ def extractBasicMetrics(_voiInfo: np.array):
 	return mean, stdDev, min, max
 
 
-def extractRodLineProfile(_voiInfo: np.array):
+def extractRodLineProfile(_voiInfo: np.ndarray) -> np.ndarray:
 	'''
 	Def: According to NU4 protocol, we have to average the voxels along the axial axis for the VOIs of the five hot 
 	     rods. We then determine the maximum average activity. At the voxel position having the maximum average 
@@ -147,7 +147,7 @@ def extractRodLineProfile(_voiInfo: np.array):
 	@_voiInfo[:, 5]: Array describing the pixels inside the current VOI. The column are the pixel value, the fraction 
 	                 inside the VOI and the (x, y, z) position of the pixel.
 	Returns:
-		list: axial line profile at the maximum average voxel position.
+		Axial line profile at the maximum average voxel position.
 	'''
 	# Extract the X, Y position then the intensity
 	voxelXPos = _voiInfo[:, 2]
@@ -175,12 +175,12 @@ def extractRodLineProfile(_voiInfo: np.array):
 	return axialLineProfile[maxAvgKey]
 
 
-def evalUniformity(_vois):
+def evalUniformity(_vois: Dict[str, np.ndarray]) -> Dict[str, float]:
 	''' 
 	Def: Evaluate uniformity from the uniformity VOI.
 	@_vois: Dictionary of VOIs.
 	Returns: 
-		dictionary of uniformity results
+		Dictionary of uniformity results
 	'''
 	# Evaluate mean, min and max of uniformity VOI, then coefficient of variation
 	unifMean, unifStdDev, unifMin, unifMax = extractBasicMetrics(_vois['Unif'])
@@ -189,13 +189,13 @@ def evalUniformity(_vois):
 	return unifResults
 
 
-def evalSpillOverRatios(_vois, _unifResults):
+def evalSpillOverRatios(_vois: Dict[str, np.ndarray], _unifResults: Dict[str, float]) -> Dict[str, Dict[str, float]]:
 	''' 
 	Def: Evaluate spill-over ratios of water and air cavities.
 	@_vois: dictionary of VOIs
 	@_unifResults: dictionary of uniformity results
 	Returns: 
-		dictionary of spill-over ratio results
+		Dictionary of spill-over ratio results
 	'''
 	# SOR: Spill Over Ratio
 	sorResults = {}
@@ -214,7 +214,7 @@ def evalSpillOverRatios(_vois, _unifResults):
 	return sorResults
 
 
-def evalRecovCoeff(_vois, _unifResults):
+def evalRecovCoeff(_vois: Dict[str, np.ndarray], _unifResults) -> Dict[str, Dict[str, float]]:
 	''' 
 	Def: Evaluate recovery coefficients of the five rods.
 	@_vois: Dictionary of VOIs
@@ -239,14 +239,13 @@ def evalRecovCoeff(_vois, _unifResults):
 	return rcResults
 
 
-def showReport(_unifResults, _sorResults, _rcResults):
+def showReport(_unifResults: Dict[str, float], _sorResults: Dict[str, Dict[str, float]], \
+	           _rcResults: Dict[str, Dict[str, float]]) -> None:
 	''' 
 	Def: Show a report of the analysis results.
 	@_unifResults: Dictionary with uniformity results.
 	@_sorResults: Dictionary with spill-over ratios results.
 	@_rcResults: Dictionary with recovery coefficients results.
-	Returns:
-		Nothing, only print results.
 	'''
 	print("\n*******************************")
 	print("==== Uniformity ====")
@@ -263,14 +262,14 @@ def showReport(_unifResults, _sorResults, _rcResults):
 	print("\n==== Recovery coefficients ====")
 	for cRod in ROD_NAMES:
 		print(f"  {cRod.replace('Rod_', '')} mm: {_rcResults[cRod]['rc']:.2f} ± {_rcResults[cRod]['rcError']:.2f}")
-	print("*******************************\n")
+	print("************************************************************\n")
 
 
 
 ########################################################################################################################
 # List of methods used to use this module as a script.
 ########################################################################################################################
-def main(args):
+def main(args) -> None:
 	''' Main function to execute the script. '''
 	# Load .tsv data (VOI statistics) obtained from AMIDE
 	data = parseAmideRawMeasurementFile(args.iFile)
@@ -297,7 +296,7 @@ def readArguments():
 	                                              "extracted with Amide."))
 	
 	# Basic:
-	parser.add_argument('-i', '--iFile', action='store', type=str, required=True, dest='iFile', default="", 
+	parser.add_argument('-i', '--iFile', action='store', type=str, required=True, dest='iFile',  
 	                    help=("File where the measurements of Amide were saved."))
 
 	# Features:
