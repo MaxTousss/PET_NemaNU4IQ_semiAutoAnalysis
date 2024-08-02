@@ -82,37 +82,51 @@ def parseAmideRawMeasurementFile(_file_path: str):
 		current_data_set = None
 		current_roi = None
 		current_table = []
+		# uio
+		nbSave = 0
 		for line in file:
-			# Attempt to extract the data set name in the current line 
-			data_set_match = re.match(r"#\s+Data Set:\s+(.+?)\s+Scaling Factor:", line)
-			# Attempt to extract the ROI name in the current line 
-			roi_match = re.match(r"#\s+ROI:\s+(\S+)\s+Type:", line)
-
-			if data_set_match:
-				# Store the current table in the dictionary before starting a new one
-				if current_data_set and current_roi and (current_roi not in data_dict[current_data_set]):
-					data_dict[current_data_set][current_roi] = np.array(current_table, dtype=float)
-				# Reset for new table
-				current_data_set = str(id) #data_set_match.group(1)
-				id +=1
-				current_table = []
-			elif roi_match:
-				# Store the current table in the dictionary before starting a new one
-				# zxc revoir si nec!!! aussi manque le current_table = [] might be okay 
-				# due to data_set_match always triggering after
-				if current_data_set and current_roi:
-					data_dict[current_data_set][current_roi] = np.array(current_table, dtype=float)
-				if current_roi != roi_match.group(1):
-					id = 0
-				current_roi = roi_match.group(1)
-			elif not line.startswith("#") and line.strip():
+			if line.startswith("#"):
+				# Attempt to extract the data set name in the current line 
+				data_set_match = re.match(r"#\s+Data Set:\s+(.+?)\s+Scaling Factor:", line)
+				# Attempt to extract the ROI name in the current line 
+				roi_match = re.match(r"#\s+ROI:\s+(\S+)\s+Type:", line)
+				if data_set_match:
+					# The data is provided as outer loop of VOI and inner loop of dataset.
+					# Thus, each time a dataset name is detected, data follow and we need to prepare for new data.
+					# Store the data accumulated in the dictionary (if not the first in both loop)
+					if (current_data_set is not None) and (id != 0):
+						# uio
+						print("a", current_roi, current_data_set)
+						nbSave +=1
+						data_dict[current_data_set][current_roi] = np.array(current_table, dtype=float)
+					# Start a new one
+					current_table = []
+					# zxc provide other choice of IDs
+					current_data_set = str(id) 
+					id +=1
+				elif roi_match:
+					# Store the current table in the dictionary before starting a new one
+					# zxc revoir si nec!!! aussi manque le current_table = [] might be okay 
+					# due to data_set_match always triggering after
+					if current_roi is not None:
+						# uio
+						print("b", current_roi, current_data_set)
+						nbSave +=1
+						data_dict[current_data_set][current_roi] = np.array(current_table, dtype=float)
+						id = 0
+					current_roi = roi_match.group(1)
+			elif line.strip():
 				# Add non-comment lines to the current table
 				current_table.append(line.strip().split('\t'))
 		
 		# Store the last table after exiting the loop
 		if current_data_set and current_roi:
+			# uio
+			print("c", current_roi, current_data_set)
+			nbSave +=1
 			data_dict[current_data_set][current_roi] = np.array(current_table, dtype=float)
-
+	# uio
+	print(f"Number of save: {nbSave}")
 	return data_dict
 
 
