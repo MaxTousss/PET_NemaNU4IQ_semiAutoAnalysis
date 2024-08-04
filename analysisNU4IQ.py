@@ -82,8 +82,6 @@ def parseAmideRawMeasurementFile(_file_path: str):
 		current_data_set = None
 		current_roi = None
 		current_table = []
-		# uio
-		nbSave = 0
 		for line in file:
 			if line.startswith("#"):
 				# Attempt to extract the data set name in the current line 
@@ -95,9 +93,6 @@ def parseAmideRawMeasurementFile(_file_path: str):
 					# Thus, each time a dataset name is detected, data follow and we need to prepare for new data.
 					# Store the data accumulated in the dictionary (if not the first in both loop)
 					if (current_data_set is not None) and (id != 0):
-						# uio
-						print("a", current_roi, current_data_set)
-						nbSave +=1
 						data_dict[current_data_set][current_roi] = np.array(current_table, dtype=float)
 					# Start a new one
 					current_table = []
@@ -109,9 +104,6 @@ def parseAmideRawMeasurementFile(_file_path: str):
 					# zxc revoir si nec!!! aussi manque le current_table = [] might be okay 
 					# due to data_set_match always triggering after
 					if current_roi is not None:
-						# uio
-						print("b", current_roi, current_data_set)
-						nbSave +=1
 						data_dict[current_data_set][current_roi] = np.array(current_table, dtype=float)
 						id = 0
 					current_roi = roi_match.group(1)
@@ -121,12 +113,8 @@ def parseAmideRawMeasurementFile(_file_path: str):
 		
 		# Store the last table after exiting the loop
 		if current_data_set and current_roi:
-			# uio
-			print("c", current_roi, current_data_set)
-			nbSave +=1
 			data_dict[current_data_set][current_roi] = np.array(current_table, dtype=float)
-	# uio
-	print(f"Number of save: {nbSave}")
+
 	return data_dict
 
 
@@ -271,7 +259,7 @@ def showReport(_unifResults: Dict[str, float], _sorResults: Dict[str, Dict[str, 
 	print("\n==== Spill-over ratios ====")
 	for cavity in CAVITY_NAMES:
 		align = "  " if cavity == "Air" else ""
-		print(f" {align}{cavity}: {_sorResults[cavity]['sor']:.2f} ± {_sorResults[cavity]['sorError']:.2f}")
+		print(f" {align}{cavity}: {_sorResults[cavity]['sor']:.3f} ± {_sorResults[cavity]['sorError']:.3f}")
 
 	print("\n==== Recovery coefficients ====")
 	for cRod in ROD_NAMES:
