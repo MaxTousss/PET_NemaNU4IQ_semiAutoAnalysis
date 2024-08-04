@@ -47,11 +47,12 @@ TODO:
 ########################################################################################################################
 # Imports
 ########################################################################################################################
-import re
 import argparse
-import numpy as np 
 from collections import defaultdict
+import numpy as np 
 from typing import Dict, Union, List
+import re
+import sys 
 
 
 ########################################################################################################################
@@ -59,6 +60,9 @@ from typing import Dict, Union, List
 ########################################################################################################################
 ROD_NAMES = ["Rod_1", "Rod_2", "Rod_3", "Rod_4", "Rod_5"]
 CAVITY_NAMES = ["Water", "Air"]
+
+# Currently only used to validate the expected number of value in a given line.
+amideRawValueFormat = ["Value", "Weight", "X (mm)", "Y (mm)", "Z (mm)"]
 
 
 
@@ -82,7 +86,7 @@ def parseAmideRawMeasurementFile(_file_path: str):
 		current_data_set = None
 		current_roi = None
 		current_table = []
-		for line in file:
+		for i, line in enumerate(file):
 			if line.startswith("#"):
 				# Attempt to extract the data set name in the current line 
 				data_set_match = re.match(r"#\s+Data Set:\s+(.+?)\s+Scaling Factor:", line)
@@ -100,16 +104,20 @@ def parseAmideRawMeasurementFile(_file_path: str):
 					current_data_set = str(id) 
 					id +=1
 				elif roi_match:
-					# Store the current table in the dictionary before starting a new one
-					# zxc revoir si nec!!! aussi manque le current_table = [] might be okay 
-					# due to data_set_match always triggering after
+					# Store the current table in the dictionary 
+					# There is no need to create the new table here since ROI line is always followed by a data set 
+					# line, which create the new table 
 					if current_roi is not None:
 						data_dict[current_data_set][current_roi] = np.array(current_table, dtype=float)
 						id = 0
 					current_roi = roi_match.group(1)
 			elif line.strip():
 				# Add non-comment lines to the current table
-				current_table.append(line.strip().split('\t'))
+				cData = line.strip().split('\t')
+				if len(cData) == len(amideRawValueFormat):
+					current_table.append(cData)
+				else:
+					sys.exit(f"The line {i + 1} had {len(cData)} values and it should be {len(amideRawValueFormat)}")
 		
 		# Store the last table after exiting the loop
 		if current_data_set and current_roi:
