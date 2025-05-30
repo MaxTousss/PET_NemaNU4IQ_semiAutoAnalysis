@@ -334,6 +334,8 @@ def main(args):
 						header2 += [metric]
 
 		data = pd.DataFrame(resultsArray, columns=[header1, header2], index=imName)
+		data.columns.names = ['VOI', 'Metric']
+		data.index.name = None
 		data.to_csv(args.oFile)
 	
 
