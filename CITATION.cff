@@ -8,6 +8,6 @@ authors:
 - family-names: "Auger"
   given-names: "Étienne"
 title: "Semiauto analysis of the NEMA NU4 Image Quality phantom"
-version: 1.0.1
-date-released: 2023-12-15
+version: 1.0.2
+date-released: 2025-05-30
 url: "https://github.com/MaxTousss/PET_NemaNU4IQ_semiAutoAnalysis"
