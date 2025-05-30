@@ -49,6 +49,10 @@ There are three parts to the NENA NU4 IQ phantom:
 - In a terminal, execute the python script on the previously created `.tsv` file.
 	- `python analysisNU4IQ.py -i [path/filename.tsv]`
 
+## Quality of life options
+- If a filename is provided with the `-o` flag, the results will be saved in the `csv` format.
+- The flag `-n` can be used to provide IDs to the image(s) analyzed.   
+
 
 # Placement of the VOIs using the template 
 
