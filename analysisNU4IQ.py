@@ -8,10 +8,10 @@ results are
 3) Recovery coefficients.
 
 The script assumes that the VOIs were created and placed in AMIDE beforehand, and that VOI (volume of interest) 
-statistics were saved to a .tsv file. A .xif template is normally available together with the current script so that 
-the VOI can be easily placed in AMIDE. The script can handle multiple images, for instance reconstructed at different 
-numbers of iterations. The VOIs statistics in the .tsv file can therefore be for multiple datasets. The final report 
-will give the results for all the datasets.
+statistics were saved to a .tsv file as raw values. A .xif template is normally available together with the current 
+script so that the VOI can be easily placed in AMIDE. The script can handle multiple images, for instance 
+reconstructed at different numbers of iterations. The VOIs statistics in the .tsv file can therefore be for multiple 
+datasets. The final report will give the results for all the datasets.
 
 Requirements:
 	- VOIs are named: Unif, Water, Air, Rod_{1..5} from AMIDE (use the template!)
