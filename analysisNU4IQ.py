@@ -47,6 +47,9 @@ TODO:
 ########################################################################################################################
 # Imports
 ########################################################################################################################
+import re
+import sys 
+import pandas as pd
 import argparse
 from collections import defaultdict
 import numpy as np 
@@ -285,8 +288,11 @@ def main(args) -> None:
 	data = parseAmideRawMeasurementFile(args.iFile)
 
 	# Loop on each dataset (can be one or more)
+	allResults = []
+	imName = []
 	for data_set, vois in data.items():
-		print(f"The current dataset is named {data_set}")
+		if args.oFile == "":
+			print(f"The current dataset is named {data_set}")
 
 		# Uniformity, SOR and Recovery coefficients
 		unifResults = evalUniformity(vois)
@@ -294,8 +300,54 @@ def main(args) -> None:
 		rcResults = evalRecovCoeff(vois, unifResults)
 
 		# Show report of results
-		showReport(unifResults, sorResults, rcResults)
+		if args.oFile == "":
+			showReport(unifResults, sorResults, rcResults)
+		else:
+			imName += [data_set]
+			allResults += [{"unif": unifResults, "sor": sorResults, "rc": rcResults}]
+			
+	
+	if args.oFile != "":
+		if args.imName is not None:
+			if len(args.imName) != len(imName):
+				sys.exit(f"Number of name provided ({len(args.imName)}) does not match the number of images analyzed ({len(imName)}). Exiting.")
+			imName = args.imName
 
+		metricOrder = {}
+		metricOrder["unif"] = ["mean", "min", "max", "unifCoeffOfVar"]
+		metricOrder["sor"] = ["sor", "sorError"]
+		metricOrder["rc"] = ["rc", "rcError"]
+		header1 = []
+		header2 = []
+		resultsArray = np.empty((len(imName), 18))
+		for i in range(len(imName)):
+			cPos = 0
+			for metric in metricOrder["unif"]:
+				resultsArray[i, cPos] = allResults[i]["unif"][metric]
+				cPos += 1
+				if i == 0:
+					header1 += ["unif"]
+					header2 += [metric]
+			for cCavity in CAVITY_NAMES:
+				for metric in metricOrder["sor"]:
+					resultsArray[i, cPos] = allResults[i]["sor"][cCavity][metric]
+					cPos += 1
+					if i == 0:
+						header1 += [cCavity]
+						header2 += [metric]
+			for cRod in ROD_NAMES:
+				for metric in metricOrder["rc"]:
+					resultsArray[i, cPos] = allResults[i]["rc"][cRod][metric]
+					cPos += 1
+					if i == 0:
+						header1 += [cRod]
+						header2 += [metric]
+
+		data = pd.DataFrame(resultsArray, columns=[header1, header2], index=imName)
+		data.columns.names = ['VOI', 'Metric']
+		data.index.name = None
+		data.to_csv(args.oFile)
+	
 
 def readArguments():
 	'''
@@ -310,7 +362,10 @@ def readArguments():
 	                    help=("File where the measurements of Amide were saved."))
 
 	# Features:
-	# n/a 
+	parser.add_argument('-o', '--oFile', action='store', type=str, required=False, dest='oFile', default="", 
+	                    help=("File were the resuls should be saved in csv format."))
+	parser.add_argument('-n', '--imName', action='store', type=str, required=False, dest='imName', default=None, 
+	                    nargs="+", help=("Name to assign to the image analyzed."))
 
 	return parser.parse_args()
 
