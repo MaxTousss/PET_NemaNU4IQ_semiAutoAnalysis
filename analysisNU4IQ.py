@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Script to analyze the NEMA NU4 image(s) quality phantom. The analysis follows the NEMA NU4 protocol and the reported
 results are
@@ -42,37 +41,21 @@ TODO:
 	- Add some checks
 """
 
-
-
-########################################################################################################################
-# Imports
-########################################################################################################################
 import re
 import sys
-import pandas as pd
 import argparse
+from typing import Dict, Union
 from collections import defaultdict
+
 import numpy as np
-from typing import Dict, Union, List
-import re
-import sys
+import pandas as pd
 
 
-########################################################################################################################
-# Constants
-########################################################################################################################
 ROD_NAMES = ["Rod_1", "Rod_2", "Rod_3", "Rod_4", "Rod_5"]
 CAVITY_NAMES = ["Water", "Air"]
 
-# Currently only used to validate the expected number of value in a given line.
-amideRawValueFormat = ["Value", "Weight", "X (mm)", "Y (mm)", "Z (mm)"]
 
-
-
-########################################################################################################################
-# Methods created to build the features.
-########################################################################################################################
-def parseAmideRawMeasurementFile(_file_path: str):
+def parseAmideRawMeasurementFile(_file_path: str) -> Dict[str, Dict[str, np.ndarray]]:
 	'''
 	Def: Parses the raw measurement file saved by Amide of the IQ phantom image. The function saves the information in
 	     a two-level dictionary where each key is the image name and the second level is the VOI name and its
@@ -81,55 +64,6 @@ def parseAmideRawMeasurementFile(_file_path: str):
 	Returns:
 		{images}{VOI}: Two-level dictionary containing the image(s) and VOIs.
 	'''
-	# Initialize the two-level dictionary
-	data_dict = defaultdict(lambda: defaultdict(list))
-
-	id = 0
-	with open(_file_path, 'r') as file:
-		current_data_set = None
-		current_roi = None
-		current_table = []
-		for i, line in enumerate(file):
-			if line.startswith("#"):
-				# Attempt to extract the data set name in the current line
-				data_set_match = re.match(r"#\s+Data Set:\s+(.+?)\s+Scaling Factor:", line)
-				# Attempt to extract the ROI name in the current line
-				roi_match = re.match(r"#\s+ROI:\s+(\S+)\s+Type:", line)
-				if data_set_match:
-					# The data is provided as outer loop of VOI and inner loop of dataset.
-					# Thus, each time a dataset name is detected, data follow and we need to prepare for new data.
-					# Store the data accumulated in the dictionary (if not the first in both loop)
-					if (current_data_set is not None) and (id != 0):
-						data_dict[current_data_set][current_roi] = np.array(current_table, dtype=float)
-					# Start a new one
-					current_table = []
-					# zxc provide other choice of IDs
-					current_data_set = str(id)
-					id +=1
-				elif roi_match:
-					# Store the current table in the dictionary
-					# There is no need to create the new table here since ROI line is always followed by a data set
-					# line, which create the new table
-					if current_roi is not None:
-						data_dict[current_data_set][current_roi] = np.array(current_table, dtype=float)
-						id = 0
-					current_roi = roi_match.group(1)
-			elif line.strip():
-				# Add non-comment lines to the current table
-				cData = line.strip().split('\t')
-				if len(cData) == len(amideRawValueFormat):
-					current_table.append(cData)
-				else:
-					sys.exit(f"The line {i + 1} had {len(cData)} values and it should be {len(amideRawValueFormat)}")
-
-		# Store the last table after exiting the loop
-		if current_data_set and current_roi:
-			data_dict[current_data_set][current_roi] = np.array(current_table, dtype=float)
-
-	return data_dict
-
-
-def parseAmideRawMeasurementFile2(_file_path: str):
 	data = defaultdict(lambda: defaultdict(list))
 	with open(_file_path) as fp:
 		for line in fp:
@@ -155,11 +89,9 @@ def extractBasicMetrics(_voiInfo: np.ndarray) -> Union[float, float, float, floa
 	Returns:
 	    Mean, StdDev, Min and Max of the VOI.
 	'''
-	# Can handle fractions of pixels
 	pixelVal = _voiInfo[:, 0]
 	pixelFrac = _voiInfo[:, 1]
 
-    # Extract the basic statistics
 	mean = np.sum(pixelVal * pixelFrac) / np.sum(pixelFrac)
 	stdDev = np.sqrt(np.sum(pixelFrac * (pixelVal - mean)**2) / np.sum(pixelFrac))
 	min = np.min(pixelVal)
@@ -180,33 +112,6 @@ def extractRodLineProfile(_voiInfo: np.ndarray) -> np.ndarray:
 	Returns:
 		Axial line profile at the maximum average voxel position.
 	'''
-	# Extract the X, Y position then the intensity
-	voxelXPos = _voiInfo[:, 2]
-	voxelYPos = _voiInfo[:, 3]
-	voxelVal = _voiInfo[:, 0]
-
-	# Create axial line profile at each X,Y position
-	axialLineProfile = {}
-	for i in range(_voiInfo.shape[0]):
-		xyKey = str(voxelXPos[i]) + "_" + str(voxelYPos[i])
-		if xyKey in axialLineProfile:
-			axialLineProfile[xyKey].append(voxelVal[i])
-		else:
-			axialLineProfile[xyKey] = [voxelVal[i]]
-
-	# Find the axial profile at maximum average pixel position
-	maxAvgKey = None
-	maxAvg = 0.0
-	for key in axialLineProfile:
-		currAvg = np.mean(axialLineProfile[key])
-		if maxAvg < currAvg:
-			maxAvgKey = key
-			maxAvg = currAvg
-
-	return axialLineProfile[maxAvgKey]
-
-
-def extractRodLineProfile2(_voiInfo):
 	profiles = defaultdict(list)
 	for (v, _w, x, y, _z) in _voiInfo:
 		profiles[(x, y)].append(v)
@@ -220,11 +125,9 @@ def evalUniformity(_vois: Dict[str, np.ndarray]) -> Dict[str, float]:
 	Returns:
 		Dictionary of uniformity results
 	'''
-	# Evaluate mean, min and max of uniformity VOI, then coefficient of variation
 	unifMean, unifStdDev, unifMin, unifMax = extractBasicMetrics(_vois['Unif'])
 	unifCoeffOfVar = unifStdDev / unifMean
-	unifResults = {"mean": unifMean, "min": unifMin, "max": unifMax, "unifCoeffOfVar": unifCoeffOfVar}
-	return unifResults
+	return {"mean": unifMean, "min": unifMin, "max": unifMax, "unifCoeffOfVar": unifCoeffOfVar}
 
 
 def evalSpillOverRatios(_vois: Dict[str, np.ndarray], _unifResults: Dict[str, float]) -> Dict[str, Dict[str, float]]:
@@ -235,15 +138,11 @@ def evalSpillOverRatios(_vois: Dict[str, np.ndarray], _unifResults: Dict[str, fl
 	Returns:
 		Dictionary of spill-over ratio results
 	'''
-	# SOR: Spill Over Ratio
 	sorResults = {}
 
-	# Loop on the two cavities
 	for cavity in CAVITY_NAMES:
-		# Extract mean and stdev of current material VOI
 		mean, stdev, _, _ = extractBasicMetrics(_vois[cavity])
 
-		# Evaluate SOR and error
 		sor = mean / _unifResults["mean"]
 		sorCoeffOfVar = stdev / mean
 		sorError = sor * np.sqrt(sorCoeffOfVar**2 + _unifResults["unifCoeffOfVar"]**2)
@@ -260,15 +159,11 @@ def evalRecovCoeff(_vois: Dict[str, np.ndarray], _unifResults) -> Dict[str, Dict
 	Returns:
 		Dictionary of recovery coefficients results
 	'''
-	# RC: Recovery coefficient
 	rcResults = {}
 
-	# Loop on the five rods
 	for cRod in ROD_NAMES:
-		# Extract the line profile at the maximum average position
-		maxAvglineProfile = extractRodLineProfile2(_vois[cRod])
+		maxAvglineProfile = extractRodLineProfile(_vois[cRod])
 
-		# Evaluate recovery coefficient and error
 		cRodRecCoeff = np.mean(maxAvglineProfile) / _unifResults["mean"]
 		cRodCoeffOfVar = np.std(maxAvglineProfile) / np.mean(maxAvglineProfile)
 		cRodError = cRodRecCoeff * np.sqrt(cRodCoeffOfVar**2 + _unifResults["unifCoeffOfVar"]**2)
@@ -310,7 +205,7 @@ def showReport(_unifResults: Dict[str, float], _sorResults: Dict[str, Dict[str, 
 def main(args) -> None:
 	''' Main function to execute the script. '''
 	# Load .tsv data (VOI statistics) obtained from AMIDE
-	data = parseAmideRawMeasurementFile2(args.iFile)
+	data = parseAmideRawMeasurementFile(args.iFile)
 
 	# Loop on each dataset (can be one or more)
 	allResults = []
@@ -395,10 +290,6 @@ def readArguments():
 	return parser.parse_args()
 
 
-
-########################################################################################################################
-# Main : Generate a empty config file or validate an existing configuration file.
-########################################################################################################################
 if __name__=='__main__':
 	args = readArguments()
 	main(args)
