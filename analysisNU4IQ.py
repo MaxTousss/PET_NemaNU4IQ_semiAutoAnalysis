@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Script to analyze the NEMA NU4 image(s) quality phantom. The analysis follows the NEMA NU4 protocol and the reported 
+Script to analyze the NEMA NU4 image(s) quality phantom. The analysis follows the NEMA NU4 protocol and the reported
 results are
 1) Uniformity
 2) Spill-over ratios (water and air cavities)
 3) Recovery coefficients.
 
-The script assumes that the VOIs were created and placed in AMIDE beforehand, and that VOI (volume of interest) 
-statistics were saved to a .tsv file as raw values. A .xif template is normally available together with the current 
-script so that the VOI can be easily placed in AMIDE. The script can handle multiple images, for instance 
-reconstructed at different numbers of iterations. The VOIs statistics in the .tsv file can therefore be for multiple 
+The script assumes that the VOIs were created and placed in AMIDE beforehand, and that VOI (volume of interest)
+statistics were saved to a .tsv file as raw values. A .xif template is normally available together with the current
+script so that the VOI can be easily placed in AMIDE. The script can handle multiple images, for instance
+reconstructed at different numbers of iterations. The VOIs statistics in the .tsv file can therefore be for multiple
 datasets. The final report will give the results for all the datasets.
 
 Requirements:
@@ -24,9 +24,9 @@ Summary of the NEMA NU4 protocol:
 		- Report: ratio of the mean activity of the VOIs and the mean activity in the uniform VOI.
 	- Recovery coefficients: Five VOIs with a diameter twice the rod diameter and length of 10 mm.
 		- Averaging the voxels along the axial axis and determining the maximum average activity inside each VOI.
-		- Report: 
+		- Report:
 			- Mean: ratio of the maximum average and the mean activity in the hot uniform VOI
-			- Stdev: standard deviation of the activity along the axial axis at the position of the maximum average 
+			- Stdev: standard deviation of the activity along the axial axis at the position of the maximum average
 			  activity.
 
 Notes:
@@ -37,8 +37,8 @@ Notes:
 Usage example:
 	python analysisNU4IQ.py -i roi_results.tsv
 
-TODO: 
-	- Clean up and check the zxc 
+TODO:
+	- Clean up and check the zxc
 	- Add some checks
 """
 
@@ -48,14 +48,14 @@ TODO:
 # Imports
 ########################################################################################################################
 import re
-import sys 
+import sys
 import pandas as pd
 import argparse
 from collections import defaultdict
-import numpy as np 
+import numpy as np
 from typing import Dict, Union, List
 import re
-import sys 
+import sys
 
 
 ########################################################################################################################
@@ -74,16 +74,16 @@ amideRawValueFormat = ["Value", "Weight", "X (mm)", "Y (mm)", "Z (mm)"]
 ########################################################################################################################
 def parseAmideRawMeasurementFile(_file_path: str):
 	'''
-	Def: Parses the raw measurement file saved by Amide of the IQ phantom image. The function saves the information in 
-	     a two-level dictionary where each key is the image name and the second level is the VOI name and its 
+	Def: Parses the raw measurement file saved by Amide of the IQ phantom image. The function saves the information in
+	     a two-level dictionary where each key is the image name and the second level is the VOI name and its
 	     corresponding raw measurement.
-	@_file_path: Name of the file where the Amide raw measurements of the VOIs were saved. 
+	@_file_path: Name of the file where the Amide raw measurements of the VOIs were saved.
 	Returns:
 		{images}{VOI}: Two-level dictionary containing the image(s) and VOIs.
 	'''
 	# Initialize the two-level dictionary
 	data_dict = defaultdict(lambda: defaultdict(list))
-		
+
 	id = 0
 	with open(_file_path, 'r') as file:
 		current_data_set = None
@@ -91,9 +91,9 @@ def parseAmideRawMeasurementFile(_file_path: str):
 		current_table = []
 		for i, line in enumerate(file):
 			if line.startswith("#"):
-				# Attempt to extract the data set name in the current line 
+				# Attempt to extract the data set name in the current line
 				data_set_match = re.match(r"#\s+Data Set:\s+(.+?)\s+Scaling Factor:", line)
-				# Attempt to extract the ROI name in the current line 
+				# Attempt to extract the ROI name in the current line
 				roi_match = re.match(r"#\s+ROI:\s+(\S+)\s+Type:", line)
 				if data_set_match:
 					# The data is provided as outer loop of VOI and inner loop of dataset.
@@ -104,12 +104,12 @@ def parseAmideRawMeasurementFile(_file_path: str):
 					# Start a new one
 					current_table = []
 					# zxc provide other choice of IDs
-					current_data_set = str(id) 
+					current_data_set = str(id)
 					id +=1
 				elif roi_match:
-					# Store the current table in the dictionary 
-					# There is no need to create the new table here since ROI line is always followed by a data set 
-					# line, which create the new table 
+					# Store the current table in the dictionary
+					# There is no need to create the new table here since ROI line is always followed by a data set
+					# line, which create the new table
 					if current_roi is not None:
 						data_dict[current_data_set][current_roi] = np.array(current_table, dtype=float)
 						id = 0
@@ -121,7 +121,7 @@ def parseAmideRawMeasurementFile(_file_path: str):
 					current_table.append(cData)
 				else:
 					sys.exit(f"The line {i + 1} had {len(cData)} values and it should be {len(amideRawValueFormat)}")
-		
+
 		# Store the last table after exiting the loop
 		if current_data_set and current_roi:
 			data_dict[current_data_set][current_roi] = np.array(current_table, dtype=float)
@@ -129,12 +129,30 @@ def parseAmideRawMeasurementFile(_file_path: str):
 	return data_dict
 
 
+def parseAmideRawMeasurementFile2(_file_path: str):
+	data = defaultdict(lambda: defaultdict(list))
+	with open(_file_path) as fp:
+		for line in fp:
+			if roiMatch := re.match(r"#\s+ROI:\s+(\S+)\s+Type:", line):
+				roiName = roiMatch.group(1)
+			elif dsMatch := re.match(r"#\s+Data Set:\s+(.+?)\s+Scaling Factor:", line):
+				dsName = dsMatch.group(1)
+			elif not line.startswith('#'):
+				data[dsName][roiName].append(line.split())
+
+	for k, v in data.items():
+		for kk, vv in v.items():
+			data[k][kk] = np.array(vv, dtype=float)
+
+	return data
+
+
 def extractBasicMetrics(_voiInfo: np.ndarray) -> Union[float, float, float, float]:
 	'''
 	Def: Extract the basic metrics (mean, std dev, min and max) from the VOIs.
-	@_voiInfo[:, 5]: Array describing the pixels inside the current VOI. The columns are the pixel value, the fraction 
+	@_voiInfo[:, 5]: Array describing the pixels inside the current VOI. The columns are the pixel value, the fraction
 	                 inside the VOI and the (x, y, z) position of the pixel.
-	Returns: 
+	Returns:
 	    Mean, StdDev, Min and Max of the VOI.
 	'''
 	# Can handle fractions of pixels
@@ -152,12 +170,12 @@ def extractBasicMetrics(_voiInfo: np.ndarray) -> Union[float, float, float, floa
 
 def extractRodLineProfile(_voiInfo: np.ndarray) -> np.ndarray:
 	'''
-	Def: According to NU4 protocol, we have to average the voxels along the axial axis for the VOIs of the five hot 
-	     rods. We then determine the maximum average activity. At the voxel position having the maximum average 
-	     intensity, we extract the intensity values at each slice along the axial profile. These values can then be 
-	     used to compute the standard deviation of the recovery coefficient in another function. This function extracts 
+	Def: According to NU4 protocol, we have to average the voxels along the axial axis for the VOIs of the five hot
+	     rods. We then determine the maximum average activity. At the voxel position having the maximum average
+	     intensity, we extract the intensity values at each slice along the axial profile. These values can then be
+	     used to compute the standard deviation of the recovery coefficient in another function. This function extracts
 	     the line profile at the maximum average voxel position.
-	@_voiInfo[:, 5]: Array describing the pixels inside the current VOI. The column are the pixel value, the fraction 
+	@_voiInfo[:, 5]: Array describing the pixels inside the current VOI. The column are the pixel value, the fraction
 	                 inside the VOI and the (x, y, z) position of the pixel.
 	Returns:
 		Axial line profile at the maximum average voxel position.
@@ -177,22 +195,29 @@ def extractRodLineProfile(_voiInfo: np.ndarray) -> np.ndarray:
 			axialLineProfile[xyKey] = [voxelVal[i]]
 
 	# Find the axial profile at maximum average pixel position
-	maxAvgKey = None 
+	maxAvgKey = None
 	maxAvg = 0.0
 	for key in axialLineProfile:
 		currAvg = np.mean(axialLineProfile[key])
 		if maxAvg < currAvg:
-			maxAvgKey = key 
-			maxAvg = currAvg 
+			maxAvgKey = key
+			maxAvg = currAvg
 
 	return axialLineProfile[maxAvgKey]
 
 
+def extractRodLineProfile2(_voiInfo):
+	profiles = defaultdict(list)
+	for (v, _w, x, y, _z) in _voiInfo:
+		profiles[(x, y)].append(v)
+	return max(profiles.values(), key=np.mean)
+
+
 def evalUniformity(_vois: Dict[str, np.ndarray]) -> Dict[str, float]:
-	''' 
+	'''
 	Def: Evaluate uniformity from the uniformity VOI.
 	@_vois: Dictionary of VOIs.
-	Returns: 
+	Returns:
 		Dictionary of uniformity results
 	'''
 	# Evaluate mean, min and max of uniformity VOI, then coefficient of variation
@@ -203,11 +228,11 @@ def evalUniformity(_vois: Dict[str, np.ndarray]) -> Dict[str, float]:
 
 
 def evalSpillOverRatios(_vois: Dict[str, np.ndarray], _unifResults: Dict[str, float]) -> Dict[str, Dict[str, float]]:
-	''' 
+	'''
 	Def: Evaluate spill-over ratios of water and air cavities.
 	@_vois: dictionary of VOIs
 	@_unifResults: dictionary of uniformity results
-	Returns: 
+	Returns:
 		Dictionary of spill-over ratio results
 	'''
 	# SOR: Spill Over Ratio
@@ -228,11 +253,11 @@ def evalSpillOverRatios(_vois: Dict[str, np.ndarray], _unifResults: Dict[str, fl
 
 
 def evalRecovCoeff(_vois: Dict[str, np.ndarray], _unifResults) -> Dict[str, Dict[str, float]]:
-	''' 
+	'''
 	Def: Evaluate recovery coefficients of the five rods.
 	@_vois: Dictionary of VOIs
 	@_unifResults: Dictionary of uniformity results
-	Returns: 
+	Returns:
 		Dictionary of recovery coefficients results
 	'''
 	# RC: Recovery coefficient
@@ -241,7 +266,7 @@ def evalRecovCoeff(_vois: Dict[str, np.ndarray], _unifResults) -> Dict[str, Dict
 	# Loop on the five rods
 	for cRod in ROD_NAMES:
 		# Extract the line profile at the maximum average position
-		maxAvglineProfile = extractRodLineProfile(_vois[cRod])
+		maxAvglineProfile = extractRodLineProfile2(_vois[cRod])
 
 		# Evaluate recovery coefficient and error
 		cRodRecCoeff = np.mean(maxAvglineProfile) / _unifResults["mean"]
@@ -254,7 +279,7 @@ def evalRecovCoeff(_vois: Dict[str, np.ndarray], _unifResults) -> Dict[str, Dict
 
 def showReport(_unifResults: Dict[str, float], _sorResults: Dict[str, Dict[str, float]], \
 	           _rcResults: Dict[str, Dict[str, float]]) -> None:
-	''' 
+	'''
 	Def: Show a report of the analysis results.
 	@_unifResults: Dictionary with uniformity results.
 	@_sorResults: Dictionary with spill-over ratios results.
@@ -285,7 +310,7 @@ def showReport(_unifResults: Dict[str, float], _sorResults: Dict[str, Dict[str, 
 def main(args) -> None:
 	''' Main function to execute the script. '''
 	# Load .tsv data (VOI statistics) obtained from AMIDE
-	data = parseAmideRawMeasurementFile(args.iFile)
+	data = parseAmideRawMeasurementFile2(args.iFile)
 
 	# Loop on each dataset (can be one or more)
 	allResults = []
@@ -305,8 +330,8 @@ def main(args) -> None:
 		else:
 			imName += [data_set]
 			allResults += [{"unif": unifResults, "sor": sorResults, "rc": rcResults}]
-			
-	
+
+
 	if args.oFile != "":
 		if args.imName is not None:
 			if len(args.imName) != len(imName):
@@ -347,7 +372,7 @@ def main(args) -> None:
 		data.columns.names = ['VOI', 'Metric']
 		data.index.name = None
 		data.to_csv(args.oFile)
-	
+
 
 def readArguments():
 	'''
@@ -356,15 +381,15 @@ def readArguments():
 	'''
 	parser = argparse.ArgumentParser(description=("Compute Nema Nu4 metrics from the raw measurements of the VOIs " \
 	                                              "extracted with Amide."))
-	
+
 	# Basic:
-	parser.add_argument('-i', '--iFile', action='store', type=str, required=True, dest='iFile',  
+	parser.add_argument('-i', '--iFile', action='store', type=str, required=True, dest='iFile',
 	                    help=("File where the measurements of Amide were saved."))
 
 	# Features:
-	parser.add_argument('-o', '--oFile', action='store', type=str, required=False, dest='oFile', default="", 
+	parser.add_argument('-o', '--oFile', action='store', type=str, required=False, dest='oFile', default="",
 	                    help=("File were the resuls should be saved in csv format."))
-	parser.add_argument('-n', '--imName', action='store', type=str, required=False, dest='imName', default=None, 
+	parser.add_argument('-n', '--imName', action='store', type=str, required=False, dest='imName', default=None,
 	                    nargs="+", help=("Name to assign to the image analyzed."))
 
 	return parser.parse_args()
